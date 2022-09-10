@@ -102,6 +102,7 @@ class PixelStrip:
         self.getPixelColor = self.main_strip.getPixelColor
         self.getPixelColorRGB = self.main_strip.getPixelColorRGB
         self.getPixelColorRGBW = self.main_strip.getPixelColorRGBW
+        self.off = self.main_strip.off
 
         # Substitute for __del__, traps an exit condition and cleans up properly
         atexit.register(self._cleanup)
@@ -226,10 +227,46 @@ class PixelStrip:
         def __len__(self):
             return self.num
 
+        def _adjust_pos(self, pos):
+            # create an adjusted pos, either a slice or index
+            if isinstance(pos, slice):
+                if pos.start and pos.start < 0:
+                    apos_start = self.first + self.num + pos.start
+                else:
+                    apos_start = (0 if pos.start is None else pos.start) + self.first
+
+                if pos.stop and pos.stop < 0:
+                    apos_stop = pos.stop + self.last
+                else:
+                    apos_stop = (self.num if pos.stop is None else pos.stop) + self.first
+                apos = slice(apos_start,
+                             apos_stop,
+                             pos.step)
+                return apos
+            if pos < 0:
+                return self.num + pos + self.first
+            return pos + self.first
+
+
+        def __getitem__(self, pos):
+            """Return the 24-bit RGB color value at the provided position or slice
+            of positions.
+            """
+            return self.strip[self._adjust_pos(pos)]
+
+        def __setitem__(self, pos, value):
+            """Set the 24-bit RGB color value at the provided position or slice of
+            positions. If value is a slice it is zip()'ed with pos to set as many
+            leds as there are values.
+            """
+            self.strip[self._adjust_pos(pos)] = value
+
         def setPixelColor(self, n, color):
             """Set LED at position n to the provided 24-bit color value (in RGB order).
+            If n is a slice then color can be a value which is repeated for all leds
+            or a slice of values which are applied to the leds.
             """
-            self.strip[self.first + n] = color
+            self[n] = color
 
         def setPixelColorRGB(self, n, red, green, blue, white=0):
             """Set LED at position n to the provided red, green, and blue color.
@@ -237,7 +274,7 @@ class PixelStrip:
             lowest intensity and 255 is the highest intensity).
             """
             # Translation to n done in setPixelColor
-            self.setPixelColor(n, Color(red, green, blue, white))
+            self[n] = Color(red, green, blue, white)
 
         def getBrightness(self):
             return ws.ws2811_channel_t_brightness_get(self.strip._channel)
@@ -254,7 +291,7 @@ class PixelStrip:
             """Return an object which allows access to the LED display data as if
             it were a sequence of 24-bit RGB values.
             """
-            return self.strip[self.first:self.last]
+            return self[:]
 
         def numPixels(self):
             """Return the number of pixels in the strip."""
@@ -262,17 +299,20 @@ class PixelStrip:
 
         def getPixelColor(self, n):
             """Get the 24-bit RGB color value for the LED at position n."""
-            return self.strip[self.first + n]
+            return self[n]
 
         def getPixelColorRGB(self, n):
-            return RGBW(self.strip[self.first + n])
+            return RGBW(self[n])
 
         def getPixelColorRGBW(self, n):
-            return RGBW(self.strip[self.first + n])
+            return RGBW(self[n])
 
         def show(self):
             self.strip.show()
 
+        def off(self):
+            self[:] = 0
+            self.strip.show()
 
 class InvalidStrip(Exception):
     pass
