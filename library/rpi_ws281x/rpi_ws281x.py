@@ -40,14 +40,15 @@ def Color(red, green, blue, white=0):
 
 class PixelStrip:
     def __init__(self, num, pin, freq_hz=800000, dma=10, invert=False,
-            brightness=255, channel=0, strip_type=None, gamma=None):
+            brightness=255, channel=0, strip_type=None, gamma=None, register_cleanup=True):
         """Class to represent a SK6812/WS281x LED display.  Num should be the
         number of pixels in the display, and pin should be the GPIO pin connected
         to the display signal line (must be a PWM pin like 18!).  Optional
         parameters are freq, the frequency of the display signal in hertz (default
         800khz), dma, the DMA channel to use (default 10), invert, a boolean
-        specifying if the signal line should be inverted (default False), and
-        channel, the PWM channel to use (defaults to 0).
+        specifying if the signal line should be inverted (default False),
+        channel, the PWM channel to use (defaults to 0), and register_cleanup,
+         if True registers the cleanup function with atexit (default True).
         """
 
         if gamma is None:
@@ -90,7 +91,10 @@ class PixelStrip:
         self.size = num
 
         # Substitute for __del__, traps an exit condition and cleans up properly
-        atexit.register(self._cleanup)
+        if register_cleanup:
+            atexit.register(self._cleanup)
+        else:
+            self.cleanup = self._cleanup
 
     def __getitem__(self, pos):
         """Return the 24-bit RGB color value at the provided position or slice
