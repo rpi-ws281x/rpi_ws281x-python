@@ -106,16 +106,22 @@ class PixelStrip:
 
     def __setitem__(self, pos, value):
         """Set the 24-bit RGB color value at the provided position or slice of
-        positions.
+        positions. If value is a slice it is zip()'ed with pos to set as many
+        leds as there are values.
         """
         # Handle if a slice of positions are passed in by setting the appropriate
         # LED data values to the provided value.
+        # Cast to int() as value may be a numpy non-int value.
         if isinstance(pos, slice):
-            for n in range(*pos.indices(self.size)):
-                ws.ws2811_led_set(self._channel, n, value)
+            try:
+                for n, c in zip(range(*pos.indices(self.size)), value):
+                    ws.ws2811_led_set(self._channel, n, int(c))
+            except TypeError:
+                for n in range(*pos.indices(self.size)):
+                    ws.ws2811_led_set(self._channel, n, int(value))
         # Else assume the passed in value is a number to the position.
         else:
-            return ws.ws2811_led_set(self._channel, pos, value)
+            return ws.ws2811_led_set(self._channel, pos, int(value))
 
     def __len__(self):
         return ws.ws2811_channel_t_count_get(self._channel)
