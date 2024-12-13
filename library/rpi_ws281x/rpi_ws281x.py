@@ -48,6 +48,9 @@ class PixelStrip:
         800khz), dma, the DMA channel to use (default 10), invert, a boolean
         specifying if the signal line should be inverted (default False), and
         channel, the PWM channel to use (defaults to 0).
+
+        All the methods of a PixelSubStrip are available on PixelStrip
+        objects.
         """
 
         if gamma is None:
@@ -89,6 +92,17 @@ class PixelStrip:
 
         self.size = num
 
+        # Create a PixelSubStrip and delegate these methods to it
+        self.main_strip = self.PixelSubStrip(self, 0, num=num)
+        self.setPixelColor = self.main_strip.setPixelColor
+        self.setPixelColorRGB = self.main_strip.setPixelColorRGB
+        self.setBrightness = self.main_strip.setBrightness
+        self.getBrightness = self.main_strip.getBrightness
+        self.getPixels = self.main_strip.getPixels
+        self.getPixelColor = self.main_strip.getPixelColor
+        self.getPixelColorRGB = self.main_strip.getPixelColorRGB
+        self.getPixelColorRGBW = self.main_strip.getPixelColorRGBW
+
         # Substitute for __del__, traps an exit condition and cleans up properly
         atexit.register(self._cleanup)
 
@@ -126,6 +140,10 @@ class PixelStrip:
     def __len__(self):
         return ws.ws2811_channel_t_count_get(self._channel)
 
+    def numPixels(self):
+        """Return the number of pixels in the display."""
+        return len(self)
+
     def _cleanup(self):
         # Clean up memory used by the library when not needed anymore.
         if self._leds is not None:
@@ -155,46 +173,98 @@ class PixelStrip:
             str_resp = ws.ws2811_get_return_t_str(resp)
             raise RuntimeError('ws2811_render failed with code {0} ({1})'.format(resp, str_resp))
 
+
+class PixelSubStrip:
+    """A PixelSubStrip handles a subset of the pixels in a PixelStrip
+
+    strip = PixelStrip(...)
+    strip1 = strip.createPixelSubStrip(0, num=10)  # controls first 10 pixels
+    strip2 = strip.createPixelSubStrip(10, num=10)  # controls next 10 pixels
+
+    strip2[5] will access the 15th pixel
+    """
+
+    def __init__(self, strip, first, last=None, num=None):
+        self.strip = strip
+        if first < 0:
+            raise InvalidStrip(f"First pixel is negative ({first}).")
+        if first > len(strip):
+            raise InvalidStrip(f"First pixel is too big ({first})."
+                               f"Strip only has {len(strip)}.")
+        self.first = first
+        if last:
+            if last < 0:
+                raise InvalidStrip(f"Last pixel is negative ({last}).")
+            if last > len(strip):
+                raise InvalidStrip(f"Too many pixels ({last})."
+                                   f"Strip only has {len(strip)}.")
+            self.last = last
+            self.num = last - first
+        elif num:
+            if num < 0:
+                raise InvalidStrip(f"number of pixels is negative ({num}).")
+            if first + num > len(strip):
+                raise InvalidStrip(f"Too many pixels (last would be {first + num})."
+                                   f"Strip only has {len(strip)}.")
+            self.last = first + num
+            self.num = num
+        else:
+            raise InvalidStrip("Must specify number or last pixel to "
+                               "create a PixelSubStrip")
+
+    def __len__(self):
+        return self.num
+
     def setPixelColor(self, n, color):
         """Set LED at position n to the provided 24-bit color value (in RGB order).
         """
-        self[n] = color
+        self.strip[self.first + n] = color
 
     def setPixelColorRGB(self, n, red, green, blue, white=0):
         """Set LED at position n to the provided red, green, and blue color.
         Each color component should be a value from 0 to 255 (where 0 is the
         lowest intensity and 255 is the highest intensity).
         """
+        # Translation to n done in setPixelColor
         self.setPixelColor(n, Color(red, green, blue, white))
 
     def getBrightness(self):
-        return ws.ws2811_channel_t_brightness_get(self._channel)
+        return ws.ws2811_channel_t_brightness_get(self.strip._channel)
 
     def setBrightness(self, brightness):
         """Scale each LED in the buffer by the provided brightness.  A brightness
         of 0 is the darkest and 255 is the brightest.
+
+        This method affects all pixels in all PixelSubStrips.
         """
-        ws.ws2811_channel_t_brightness_set(self._channel, brightness)
+        ws.ws2811_channel_t_brightness_set(self.strip._channel, brightness)
 
     def getPixels(self):
         """Return an object which allows access to the LED display data as if
         it were a sequence of 24-bit RGB values.
         """
-        return self[:]
+        return self.strip[self.first:self.last]
 
     def numPixels(self):
-        """Return the number of pixels in the display."""
-        return len(self)
+        """Return the number of pixels in the strip."""
+        return self.num
 
     def getPixelColor(self, n):
         """Get the 24-bit RGB color value for the LED at position n."""
-        return self[n]
+        return self.strip[self.first + n]
 
     def getPixelColorRGB(self, n):
-        return RGBW(self[n])
+        return RGBW(self.strip[self.first + n])
 
     def getPixelColorRGBW(self, n):
-        return RGBW(self[n])
+        return RGBW(self.strip[self.first + n])
+
+    def show(self):
+        self.strip.show()
+
+
+class InvalidStrip(Exception):
+    pass
 
 # Shim for back-compatibility
 class Adafruit_NeoPixel(PixelStrip):
