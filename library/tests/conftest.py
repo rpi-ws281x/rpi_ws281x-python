@@ -39,6 +39,7 @@ _mock_rpi_ws281x.ws2811_led_get = ws2811_led_get
 @pytest.fixture(scope='function', autouse=False)
 def _rpi_ws281x():
     _mock_rpi_ws281x.ws2811_init.return_value = 0
+    _mock_rpi_ws281x.ws2811_render.return_value = 0
     sys.modules['_rpi_ws281x'] = _mock_rpi_ws281x
 
     yield _mock_rpi_ws281x
