@@ -11,6 +11,10 @@ class RGBW(int):
         else:
             if w is None:
                 w = 0
+            if g is None:
+                g = 0
+            if b is None:
+                b = 0
             return int.__new__(self, (w << 24) | (r << 16) | (g << 8) | b)
 
     @property
